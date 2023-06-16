@@ -10,6 +10,13 @@ using Amazon.EventBridge;
 using Amazon.EventBridge.Model;
 using System.Text.Json;
 
+/*
+ * Sean Fite
+ * Hybrid Cloud Program
+ * This project is a Lambda S3 trigger, processing an S3 bucket image and pushing the contents into an SQS queue
+ * Last Updated 6/16/23
+ */
+
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
@@ -17,11 +24,13 @@ namespace AWSLambdaS3ImageReader;
 
 public class Function
 {
+    // get set functionality object instances
     IAmazonS3 S3Client { get; set; }
     IAmazonRekognition AmazonRekognition { get; set; }
 
     IAmazonSQS SQSClient { get; set; }
 
+    // initialize instances
     public Function()
     {
         S3Client = new AmazonS3Client();
@@ -29,6 +38,7 @@ public class Function
         SQSClient = new AmazonSQSClient();
     }
 
+    // assign instance objects
     public Function(IAmazonS3 s3Client, IAmazonRekognition amazonRekognition, IAmazonSQS sqsClient)
     {
         this.S3Client = s3Client;
@@ -37,8 +47,10 @@ public class Function
         
     }
 
+    // this function processes S3 image and sends results to SQS queue
     public async Task FunctionHandler(S3Event evnt, ILambdaContext context)
     {
+        // find event records
         var eventRecords = evnt.Records ?? new List<S3Event.S3EventNotificationRecord>();
         foreach (var record in eventRecords)
         {
@@ -51,8 +63,8 @@ public class Function
             try
             {
                 var response = await this.S3Client.GetObjectAsync(s3Event.Bucket.Name, s3Event.Object.Key);
-
-                GetObjectTaggingRequest getTagsRequest = new GetObjectTaggingRequest            // new instance for tagging request
+                // new instance for tagging request
+                GetObjectTaggingRequest getTagsRequest = new GetObjectTaggingRequest           
                 {
                     BucketName = s3Event.Bucket.Name,
                     Key = s3Event.Object.Key,
@@ -60,13 +72,13 @@ public class Function
                 };
                 GetObjectTaggingResponse objectTags = await this.S3Client.GetObjectTaggingAsync(getTagsRequest);
                 string tags = objectTags.GetType().Name;
-                string tag = objectTags.Tagging.Count > 0 ? objectTags.Tagging[0].Key : string.Empty;  // get tag from s3 object
-
+                // get tag from s3 object
+                string tag = objectTags.Tagging.Count > 0 ? objectTags.Tagging[0].Key : string.Empty;  
+                // grab text from image
                 var detectTextRequest = new DetectTextRequest
                 {
                     Image = new Image { S3Object = new Amazon.Rekognition.Model.S3Object { Bucket = s3Event.Bucket.Name, Name = s3Event.Object.Key } }
                 };
-
                 var rekognitionClient = new AmazonRekognitionClient();
                 var detectTextResponse = await rekognitionClient.DetectTextAsync(detectTextRequest);
                 var detectedTexts = new List<string>();
@@ -80,45 +92,44 @@ public class Function
                         detectedTexts.Add(detectedText);
                     }
                 }
-
+                // format image text for processing ease in queue trigger function
                 string licensePlateString = string.Join("-", detectedTexts);
-
                 Console.WriteLine(licensePlateString);              
-
+                // if license plate is not from California, send to event bus
                 if(!licensePlateString.Contains("California"))
                 {
-                    Console.WriteLine("We are inside the start of the if statement");
+                    // event bus message
                     var eventDetail = new
                     {                      
                         Message = "This plate is not from California",
                         UtcTime = DateTime.UtcNow.ToString("g")
                     };
-                    AmazonEventBridgeClient _amazonEventBridge = new AmazonEventBridgeClient();
-                    var response3 = await _amazonEventBridge.PutEventsAsync(new PutEventsRequest()
+                    // sending to event bus
+                    var client = new AmazonEventBridgeClient(); 
+                    try
                     {
-                        Entries = new List<PutEventsRequestEntry>()
+                        await client.PutEventsAsync(new PutEventsRequest
                         {
-                            new PutEventsRequestEntry()
+                            Entries = new List<PutEventsRequestEntry>()
                             {
-                                Source = "Lambda Project 3",
-                                Detail = JsonSerializer.Serialize(eventDetail),
-                                DetailType = "Return Message",
-                                EventBusName = "arn:aws:events:us-east-1:958433759875:event-bus/default"
+                                new PutEventsRequestEntry
+                                {
+                                    Source = "Lambda Project 3",
+                                    Detail = JsonSerializer.Serialize(eventDetail),
+                                    DetailType = "Return Message",
+                                    EventBusName = "default"
+                                }
                             }
-                        }
-                    });
-
-                    // Handle the response
-                    if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
-                    {
-                        Console.WriteLine("Message sent to EventBridge successfully");
+                        });
+                        Console.WriteLine("Message sent to EventBridge");                      
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Console.WriteLine("Failed to send message to EventBridge");
+                        Console.WriteLine($"Failed to send message to EventBridge: {ex.Message}");
                     }
+                    return;
                 }
-
+                // pull out license number from image string
                 var count = 0;
                 var licenseNumString = "\"";
                 for(int i = 0; i < licensePlateString.Length; i++)
@@ -139,6 +150,7 @@ public class Function
                 }
                 Console.WriteLine(licenseNumString);
                 Console.WriteLine(tag);
+                // send message back into SQS queue
                 var sendMessageRequest = new SendMessageRequest
                 {
                     QueueUrl = "https://sqs.us-east-1.amazonaws.com/958433759875/Project3",
@@ -155,6 +167,7 @@ public class Function
                 }
 
             }
+            // if we are unable to get s3bucket
             catch (Exception e)
             {
                 context.Logger.LogError($"Error getting object {s3Event.Object.Key} from bucket {s3Event.Bucket.Name}. Make sure they exist and your bucket is in the same region as this function.");

@@ -4,6 +4,13 @@ using System.Text.RegularExpressions;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 
+/*
+ * Sean Fite
+ * Hybrid Cloud Program
+ * This project is a Lambda queue trigger, receiving an upward queue message and emailing the contents
+ * Last Updated 6/16/23
+ */
+
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
@@ -12,10 +19,7 @@ namespace AWSLambdaQueueTrigger;
 public class Function
 {
 
-    public Function()
-    {
-
-    }
+    public Function(){}
 
     public async Task FunctionHandler(SQSEvent evnt, ILambdaContext context)
     {
@@ -25,6 +29,7 @@ public class Function
         }
     }
 
+    // this function formats the queue message and sends via email
     private async Task ProcessMessageAsync(SQSEvent.SQSMessage message, ILambdaContext context)
     {
         string queueMessage = message.Body.ToString();
@@ -74,13 +79,14 @@ public class Function
         {
             ticketAmount = "125.00";
         }
+        // format message to be sent via email
         string heading = "Your vehicle was involved in a traffic violation. Please pay the specified ticket amount by 30 days:";
         string email = heading + "\n\n" + "Vehicle: " + vehicle + "\n" + "License Plate: " + license + "\n" + "Date: " + 
             dateTime + "\n" + "Violation address: " + address + "\n" + "Violation type: " + type + 
             "\n" + "Ticket amount: " + ticketAmount;
 
         Console.WriteLine(email);
-
+        // initialize email sending
         using (var snsClient = new AmazonSimpleNotificationServiceClient())
         {
             var request = new PublishRequest
@@ -89,6 +95,7 @@ public class Function
                 Message = email,
                 Subject = "Project 3"
             };
+            // send email
             var response = await snsClient.PublishAsync(request);
             // Log the response
             context.Logger.LogLine($"SNS Publish Response: {response.HttpStatusCode}");

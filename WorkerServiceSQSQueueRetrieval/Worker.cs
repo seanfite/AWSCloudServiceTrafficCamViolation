@@ -3,6 +3,14 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+/*
+ * Sean Fite
+ * Hybrid Cloud Program
+ * This project is a Worker Service, waiting for SQS queue messages, when one is recieved, a local DMV database is parsed for vehicle
+ * info matching that of the queue message, a resulting upward queue message is sent with ticket info
+ * Last Updated 6/16/23
+ */
+
 namespace WorkerServiceSQSQueueRetrieval
 {
     public class Worker : BackgroundService
@@ -29,9 +37,9 @@ namespace WorkerServiceSQSQueueRetrieval
         {
             await base.StartAsync(cancellationToken);
             string xmlFilePath = "C:\\Users\\squir\\OneDrive\\Desktop\\DMVDatabase.xml";
-            string myAccessKey = "ASIA56JY2SKBYGVLE7X6";
-            string mySecretKey = "jjFRoTTOkO9agWHqxgzibFkQfp6HQ82puEBJqMLi";
-            string sessionToken = "FwoGZXIvYXdzEPX//////////wEaDNfsFlIi9PTODmKHpiLOAQLI+OFYoQKTJNu8b4IMlSmJylBua8X2XXMObiYSLAxGCobeKQLgGmjPwq+Ibq3aVxGc88Yfy8GoWgC0tTPlOQsSWNd/zKCDDtV5YzDx7UF8w0aPVY8+whl2uwy5EG0doKZOzYolUDGunbLRwqD5kkPveQRM1/Gdia4bF1PB72K4Fbk+m5u9KZa8wY+TnM3Y+cLhnqdyk2wyD8u+74etjtqcAfztom+iThYxHUVrvBBUicvTMfm+4sz8lOmVRATtsnDgbQ1zeGKEudtycNExKNy4r6QGMi1hEo1JmRdcaxugr+YQKP0PHFW0IDyPHaCijcKuxIOSTmYL5ZhX0tY+Mtrh2RA=";
+            string myAccessKey = "ASIA56JY2SKBSWNAQTX4";
+            string mySecretKey = "YpMN8PJeUcW0TMUGL6xAiQrLPbBHpOZ6usUPDWdE";
+            string sessionToken = "FwoGZXIvYXdzEAIaDEoTG65NcgMQdRgDByLOAWhY2G4oRI8tAeKEGhg5Ae3fxV340ZpKEBdijSYuvS1q22dsZoYtzrULezt1yfqYNRLL+s62bjtL+7CKj/giVolYmtQaJ7t9bCkG5W/+ue8Pr1Gai5QR5GR1FMzuQkIdsAbonYVg5v2R0lJ9Z8nElfJQD8753eZWTb/y6foMxQuPTkXOiZFDzj9bUAveCNgJrgqwX5ne9J66+m+vL0p/tvuS97p4+99NYgYOPqntV75HkdL1iYdGO/vMA5vkZVG9sqVZGAIIAROkJMBVG/+rKLmnsqQGMi1PfDrWjXMdo0+Y+raAJuo74muCfJr2iXaeYwpZBdD8QFRa12UnNZ53j7HalQ8=";
             // get AWS credentials
             SessionAWSCredentials credentials = new SessionAWSCredentials(myAccessKey, mySecretKey, sessionToken);
             AmazonSQSConfig sqsConfig = new AmazonSQSConfig
@@ -70,6 +78,7 @@ namespace WorkerServiceSQSQueueRetrieval
                         {
                             vehicleXml = matchingVehicle.ToString();
                             WriteLog("Matching Vehicle: " + vehicleXml);
+                            // sending message back to SQS queue
                             SendMessageRequest sendMessageRequest = new SendMessageRequest
                             {
 

@@ -5,6 +5,13 @@ using Amazon;
 using Amazon.Runtime.CredentialManagement;
 using Tag = Amazon.S3.Model.Tag;
 
+/*
+ * Sean Fite
+ * Hybrid Cloud Program
+ * This project creates an S3 bucket file uploading exe, terminal call must include filepath and ticket info
+ * Last Updated 6/16/23
+ */
+
 namespace UploadDataConsoleApp
 {
     class Program
